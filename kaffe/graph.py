@@ -165,6 +165,10 @@ class GraphBuilder(object):
             if not exclude:
                 filtered_layers.append(layer)
                 # Guard against dupes.
+                if layer.name in filtered_layer_names:
+                  import pdb
+                  pdb.set_trace()
+                  pass
                 assert layer.name not in filtered_layer_names
                 filtered_layer_names.add(layer.name)
         return filtered_layers

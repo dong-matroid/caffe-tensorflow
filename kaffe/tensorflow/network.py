@@ -177,7 +177,7 @@ class Network(object):
 
     @layer
     def concat(self, inputs, axis, name):
-        return tf.concat(concat_dim=axis, values=inputs, name=name)
+        return tf.concat(axis=axis, values=inputs, name=name)
 
     @layer
     def add(self, inputs, name):
@@ -238,7 +238,24 @@ class Network(object):
                 output = tf.nn.relu(output)
             return output
 
+            
     @layer
     def dropout(self, input, keep_prob, name):
         keep = 1 - self.use_dropout + (self.use_dropout * keep_prob)
         return tf.nn.dropout(input, keep, name=name)
+
+    @layer
+    def reshape(self,input,b,x,y,c,name,transpose = False) :
+        if transpose :
+            input = tf.reshape(input,[-1,c,x,y])
+            return tf.transpose(input,(0,2,3,1))
+
+        return tf.reshape(input,[-1,x,y,c],name = name)
+
+    @layer
+    def flatten(self,input,name):
+        input = tf.transpose(input,(0,3,1,2))
+        dim = 1
+        for d in input.get_shape()[1:].as_list():
+                dim *= d
+        return tf.reshape(input,[-1,dim],name = name)

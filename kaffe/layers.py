@@ -22,7 +22,7 @@ LAYER_DESCRIPTORS = {
     'EuclideanLoss': shape_scalar,
     'Eltwise': shape_identity,
     'Exp': shape_identity,
-    'Flatten': shape_not_implemented,
+    'Flatten': flatten_shape,
     'HDF5Data': shape_data,
     'HDF5Output': shape_identity,
     'HingeLoss': shape_scalar,
@@ -49,6 +49,7 @@ LAYER_DESCRIPTORS = {
     'TanH': shape_identity,
     'WindowData': shape_not_implemented,
     'Threshold': shape_identity,
+    'Reshape':reshape_shape
 }
 
 LAYER_TYPES = LAYER_DESCRIPTORS.keys()
