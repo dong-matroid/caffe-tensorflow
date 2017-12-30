@@ -85,7 +85,7 @@ class TensorFlowMapper(NodeMapper):
         padding = {'padding': padding} if padding != network.DEFAULT_PADDING else {}
         return (kernel_params, padding)
 
-    def map_convolution(self, node):
+    def map_convolution(self, node, op = None):
         (kernel_params, kwargs) = self.get_kernel_params(node)
         h = kernel_params.kernel_h
         w = kernel_params.kernel_w
@@ -98,8 +98,12 @@ class TensorFlowMapper(NodeMapper):
             kwargs['biased'] = False
         assert kernel_params.kernel_h == h
         assert kernel_params.kernel_w == w
-        return MaybeActivated(node)('conv', kernel_params.kernel_h, kernel_params.kernel_w, c_o,
-                                    kernel_params.stride_h, kernel_params.stride_w, **kwargs)
+        shape = [node.output_shape[0],node.output_shape[2],node.output_shape[3],node.output_shape[1],]
+        return MaybeActivated(node)('conv' if op is None else op, kernel_params.kernel_h, kernel_params.kernel_w, c_o,
+                                    kernel_params.stride_h, kernel_params.stride_w, shape, **kwargs)
+
+    def map_deconvolution(self, node):
+      return self.map_convolution(node, op = 'deconv')
 
     def map_relu(self, node):
         return TensorFlowNode('relu')
@@ -141,9 +145,13 @@ class TensorFlowMapper(NodeMapper):
     def map_concat(self, node):
         if node.parents[0].kind == 'Flatten':
             axis = node.parameters.axis
-        else :    
+        else :
             axis = (2, 3, 1, 0)[node.parameters.axis]
         return TensorFlowNode('concat', axis)
+
+    def map_transpose(self, node):
+      corrected = [0, 2, 3, 1]
+      return TensorFlowNode('transpose', [corrected[i] for i in node.parameters.dim])
 
     def map_dropout(self, node):
         return TensorFlowNode('dropout', node.parameters.dropout_ratio)
@@ -152,7 +160,7 @@ class TensorFlowMapper(NodeMapper):
         if node.data :
             scale_offset = len(node.data) == 4
         else :
-            scale_offset = True    
+            scale_offset = True
         kwargs = {} if scale_offset else {'scale_offset': False}
         return MaybeActivated(node, default=False)('batch_normalization', **kwargs)
 
@@ -163,6 +171,35 @@ class TensorFlowMapper(NodeMapper):
             return TensorFlowNode(operations[op_code])
         except KeyError:
             raise KaffeError('Unknown elementwise operation: {}'.format(op_code))
+
+    def map_tanh(self, node):
+      return TensorFlowNode('tanh')
+    def map_sigmoid(self, node):
+      return TensorFlowNode('sigmoid')
+    def map_power(self, node):
+      power = 1.0
+      scale = 1.0
+      shift = 0.0
+      if hasattr(node.layer.parameters, 'power'):
+        power = float(node.layer.parameters.power)
+      if hasattr(node.layer.parameters, 'scale'):
+        scale = float(node.layer.parameters.scale)
+      if hasattr(node.layer.parameters, 'shift'):
+        shift = float(node.layer.parameters.shift)
+      return TensorFlowNode('power', power, scale, shift)
+    def map_bnll(self, node):
+      return TensorFlowNode('bnll')
+    def map_log(self, node):
+      power = -1.0
+      scale = 1.0
+      shift = 0.0
+      if hasattr(node.layer.parameters, 'power'):
+        power = float(node.layer.parameters.power)
+      if hasattr(node.layer.parameters, 'scale'):
+        scale = float(node.layer.parameters.scale)
+      if hasattr(node.layer.parameters, 'shift'):
+        shift = float(node.layer.parameters.shift)
+      return TensorFlowNode('log', power, scale, shift)
 
     def map_reshape(self,node) :
 
@@ -286,6 +323,9 @@ class TensorFlowTransformer(object):
                 DataReshaper({
                     # (c_o, c_i, h, w) -> (h, w, c_i, c_o)
                     NodeKind.Convolution: (2, 3, 1, 0),
+
+                    # (c_i, c_o, h, w) -> (h, w, c_o, c_i)
+                    NodeKind.Deconvolution: (2, 3, 1, 0),
 
                     # (c_o, c_i) -> (c_i, c_o)
                     NodeKind.InnerProduct: (1, 0)

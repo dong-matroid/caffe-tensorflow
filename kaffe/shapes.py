@@ -1,5 +1,6 @@
 import math
 from collections import namedtuple
+import numpy as np
 
 from .errors import KaffeError
 
@@ -22,9 +23,25 @@ def get_strided_kernel_output_shape(node, round_func):
     c = params.num_output if has_c_o else input_shape.channels
     return TensorShape(input_shape.batch_size, c, o_h, o_w)
 
+def get_transposed_filter_output_shape(i_h, i_w, params, round_func):
+    o_h = (i_h - 1) * float(params.stride_h)  - 2 * params.pad_h + params.kernel_h
+    o_w = (i_w - 1) * float(params.stride_w) - 2 * params.pad_w + params.kernel_w
+    return (int(round_func(o_h)), int(round_func(o_w)))
+
+
+def get_transposed_strided_kernel_output_shape(node, round_func):
+    assert node.layer is not None
+    input_shape = node.get_only_parent().output_shape
+    o_h, o_w = get_transposed_filter_output_shape(input_shape.height, input_shape.width,
+                                       node.layer.kernel_parameters, round_func)
+    params = node.layer.parameters
+    has_c_o = hasattr(params, 'num_output')
+    c = params.num_output if has_c_o else input_shape.channels
+    return TensorShape(input_shape.batch_size, c, o_h, o_w)
+
 
 def shape_not_implemented(node):
-    raise NotImplementedError  
+    raise NotImplementedError
 
 
 def shape_identity(node):
@@ -70,7 +87,7 @@ def shape_concat(node):
     return tuple(output_shape)
 
 def reshape_shape(node) :
-    
+
     input_shape = node.get_only_parent().output_shape
     input_shape_pr = input_shape.channels*input_shape.height*input_shape.width
     input_shape_arr = [input_shape.batch_size,input_shape.channels,input_shape.height,input_shape.width]
@@ -91,16 +108,26 @@ def reshape_shape(node) :
         if new_shape[j] == -1 :
             new_shape[j] = int(input_shape_pr/pr)
 
-    return TensorShape(new_shape[0],new_shape[1],new_shape[2],new_shape[3])                
+    return TensorShape(new_shape[0],new_shape[1],new_shape[2],new_shape[3])
 
 def flatten_shape(node) :
     shape1 = node.get_only_parent().output_shape
-    
+
     return TensorShape(shape1.batch_size,shape1.channels*shape1.height*shape1.width,1,1)
-    
+
+def transpose_shape(node):
+  input_shape = node.get_only_parent().output_shape
+  input_shape_arr = [input_shape.batch_size,input_shape.channels,input_shape.height,input_shape.width]
+  axes = map(int, node.parameters.dim)
+  new_shape = np.array(input_shape_arr)[axes]
+  return TensorShape(new_shape[0],new_shape[1],new_shape[2],new_shape[3])
+
 def shape_convolution(node):
     return get_strided_kernel_output_shape(node, math.floor)
 
+
+def shape_deconvolution(node):
+    return get_transposed_strided_kernel_output_shape(node, math.ceil)
 
 def shape_pool(node):
     return get_strided_kernel_output_shape(node, math.ceil)
