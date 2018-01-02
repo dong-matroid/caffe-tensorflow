@@ -50,7 +50,7 @@ class Network(object):
         '''Construct the network. '''
         raise NotImplementedError('Must be implemented by the subclass.')
 
-    def load(self, data_path, session, ignore_missing=False):
+    def load(self, data_path, session, ignore_missing=False, scope_name=None):
         '''Load network weights.
         data_path: The path to the numpy-serialized network weights
         session: The current TensorFlow session
@@ -58,7 +58,10 @@ class Network(object):
         '''
         data_dict = np.load(data_path).item()
         for op_name in data_dict:
-            with tf.variable_scope(op_name, reuse=True):
+            scope = op_name
+            if scope_name:
+              scope = scope_name + "/" + scope
+            with tf.variable_scope(scope, reuse=True):
                 for param_name, data in data_dict[op_name].iteritems():
                     try:
                         var = tf.get_variable(param_name)
@@ -115,7 +118,9 @@ class Network(object):
         assert c_o % group == 0
         # Convolution for a given input and kernel
         if op is not None and op == 'deconv':
-          convolve = lambda i, k: tf.nn.conv2d_transpose(i, k, output_shape, [1, s_h, s_w, 1], padding=padding)
+          batch_size = tf.shape(input)[0]
+          deconv_shape = tf.stack([batch_size] + output_shape[1:])
+          convolve = lambda i, k: tf.nn.conv2d_transpose(i, k, deconv_shape, [1, s_h, s_w, 1], padding=padding)
         else:
           convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
         with tf.variable_scope(name) as scope:
@@ -315,3 +320,6 @@ class Network(object):
     @layer
     def multiply(self, inputs, name):
       return tf.multiply(inputs[0], inputs[1], name = name)
+    @layer
+    def accuracy(self, inputs, name):
+      return tf.metrics.accuracy(inputs[1], inputs[0], name = name)

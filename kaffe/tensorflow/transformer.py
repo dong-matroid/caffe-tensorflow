@@ -98,7 +98,7 @@ class TensorFlowMapper(NodeMapper):
             kwargs['biased'] = False
         assert kernel_params.kernel_h == h
         assert kernel_params.kernel_w == w
-        shape = [node.output_shape[0],node.output_shape[2],node.output_shape[3],node.output_shape[1],]
+        shape = [None,node.output_shape[2],node.output_shape[3],node.output_shape[1],]
         return MaybeActivated(node)('conv' if op is None else op, kernel_params.kernel_h, kernel_params.kernel_w, c_o,
                                     kernel_params.stride_h, kernel_params.stride_w, shape, **kwargs)
 
@@ -200,6 +200,8 @@ class TensorFlowMapper(NodeMapper):
       if hasattr(node.layer.parameters, 'shift'):
         shift = float(node.layer.parameters.shift)
       return TensorFlowNode('log', power, scale, shift)
+    def map_accuracy(self, node):
+      return TensorFlowNode('accuracy')
 
     def map_reshape(self,node) :
 

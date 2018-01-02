@@ -165,10 +165,6 @@ class GraphBuilder(object):
             if not exclude:
                 filtered_layers.append(layer)
                 # Guard against dupes.
-                if layer.name in filtered_layer_names:
-                  import pdb
-                  pdb.set_trace()
-                  pass
                 assert layer.name not in filtered_layer_names
                 filtered_layer_names.add(layer.name)
         return filtered_layers
@@ -191,6 +187,7 @@ class GraphBuilder(object):
         was not treated as a first-class layer in the prototext.
         Newer models use the "Input layer" type.
         '''
+        # hack split
         nodes = [Node(name, NodeKind.Data) for name in self.params.input]
         if len(nodes):
             input_dim = map(int, self.params.input_dim)
@@ -199,8 +196,14 @@ class GraphBuilder(object):
                     input_dim = map(int, self.params.input_shape[0].dim)
                 else:
                     raise KaffeError('Dimensions for input not specified.')
-            for node in nodes:
+            if len(nodes) == 0:
+              for node in nodes:
                 node.output_shape = tuple(input_dim)
+            else:
+              assert(len(input_dim) % len(nodes) == 0)
+              step = len(input_dim) // len(nodes)
+              for i in range(len(nodes)):
+                nodes[i].output_shape = tuple(input_dim[i*step:(i+1)*step])
         return nodes
 
     def build(self):
